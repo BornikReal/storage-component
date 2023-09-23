@@ -15,7 +15,7 @@ func NewInMemoryStorage() *InMemoryStorage {
 
 func (i *InMemoryStorage) Get(key string) (string, error) {
 	i.mu.RLock()
-	defer i.mu.Unlock()
+	defer i.mu.RUnlock()
 
 	if i.storage == nil {
 		return "", NotInitError
