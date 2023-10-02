@@ -1,3 +1,3 @@
-module storage-component
+module github.com/BornikReal/storage-component
 
-go 1.20
+go 1.19
