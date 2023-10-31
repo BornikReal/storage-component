@@ -1,6 +1,8 @@
 package ss_manager
 
 import (
+	"fmt"
+	"github.com/BornikReal/storage-component/pkg/index"
 	"github.com/BornikReal/storage-component/pkg/ss"
 	"os"
 	"sort"
@@ -14,17 +16,20 @@ type Iterator interface {
 	First() bool
 }
 
-type SSManager struct {
-	path      string
-	maxSSSize int64
-
-	tables []*ss.SS
+type SSWithIndex struct {
+	table *ss.SS
+	idx   *index.Manager
 }
 
-func NewSSManager(path string, maxSSSize int64) *SSManager {
+type SSManager struct {
+	path string
+
+	idx []SSWithIndex
+}
+
+func NewSSManager(path string) *SSManager {
 	return &SSManager{
-		path:      path,
-		maxSSSize: maxSSSize,
+		path: path,
 	}
 }
 
@@ -36,25 +41,182 @@ func (s *SSManager) Init() error {
 
 	for _, f := range files {
 		name := f.Name()
-		s.tables = append(s.tables, ss.NewSS(name))
+		ssi := SSWithIndex{
+			table: ss.NewSS(name),
+		}
+
+		if err = ssi.table.Init(); err != nil {
+			return err
+		}
+		ssi.idx = index.NewManager(ssi.table, 10, 1)
+		if err = ssi.idx.Init(); err != nil {
+			return err
+		}
+
+		s.idx = append(s.idx, ssi)
 	}
-	sort.SliceStable(s.tables, func(i, j int) bool {
-		return s.tables[i].Id < s.tables[j].Id
+	sort.SliceStable(s.idx, func(i, j int) bool {
+		return s.idx[i].table.Id < s.idx[j].table.Id
 	})
 	return nil
 }
 
-func (s *SSManager) createNewSS() *ss.SS {
+func (s *SSManager) createNewSS() (SSWithIndex, error) {
 	var lastID int64
-	if len(s.tables) != 0 {
-		lastID = s.tables[len(s.tables)-1].Id + 1
+	if len(s.idx) != 0 {
+		lastID = s.idx[len(s.idx)-1].table.Id + 1
 	}
 	newSS := ss.NewSS(strconv.FormatInt(lastID, 10))
-	s.tables = append(s.tables, newSS)
-	return newSS
+	if err := newSS.Init(); err != nil {
+		return SSWithIndex{}, err
+	}
+	idx := SSWithIndex{
+		table: newSS,
+		idx:   index.NewManager(newSS, 10, 1),
+	}
+	s.idx = append(s.idx, idx)
+	return idx, nil
 }
 
-func (s *SSManager) SaveTree(it *Iterator) error {
-	//table := s.createNewSS()
+func (s *SSManager) SaveTree(it Iterator) error {
+	idx, err := s.createNewSS()
+	if err != nil {
+		return err
+	}
+
+	next := it.First()
+	for next {
+		key, ok := it.Key().(string)
+		if !ok {
+			return err
+		}
+		value, ok := it.Value().(string)
+		if !ok {
+			return err
+		}
+
+		if err = idx.table.WriteKV(ss.KV{
+			Key:   key,
+			Value: value,
+		}); err != nil {
+			return err
+		}
+		next = it.Next()
+	}
+
+	if err = idx.idx.Init(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SSManager) Get(key string) (string, bool, error) {
+	for i := len(s.idx) - 1; i >= 0; i-- {
+		value, exist, err := s.idx[i].idx.Get(key)
+		if err != nil {
+			return "", false, err
+		}
+		if !exist {
+			continue
+		}
+		return value, true, nil
+	}
+	return "", false, nil
+}
+
+func (s *SSManager) CompressSS() error {
+	if len(s.idx) != 2 {
+		return nil
+	}
+
+	t1 := s.idx[0]
+	t2 := s.idx[1]
+	newSS := ss.NewSS(fmt.Sprintf("%s_temp", t1.table.Name))
+	if err := newSS.Init(); err != nil {
+		return err
+	}
+
+	ok1 := true
+	ok2 := true
+	read1 := true
+	read2 := true
+
+	var kv1, kv2 ss.KV
+	var err error
+
+	for {
+		if read1 {
+			kv1, ok1, err = t1.table.Read(1)
+			if err != nil {
+				return err
+			}
+		}
+
+		if read2 {
+			kv2, ok2, err = t2.table.Read(1)
+			if err != nil {
+				return err
+			}
+		}
+
+		if !(ok1 && ok2) {
+			break
+		}
+
+		if kv1.Key < kv2.Key {
+			read2 = false
+			if err = newSS.WriteKV(kv1); err != nil {
+				return err
+			}
+		} else if kv1.Key >= kv2.Key {
+			if kv1.Key != kv2.Key {
+				read1 = false
+			}
+
+			if err = newSS.WriteKV(kv2); err != nil {
+				return err
+			}
+		}
+	}
+
+	for ok1 {
+		kv1, ok1, err = t1.table.Read(1)
+		if err != nil {
+			return err
+		}
+
+		if err = newSS.WriteKV(kv1); err != nil {
+			return err
+		}
+	}
+
+	for ok2 {
+		kv2, ok2, err = t2.table.Read(1)
+		if err != nil {
+			return err
+		}
+
+		if err = newSS.WriteKV(kv2); err != nil {
+			return err
+		}
+	}
+	if err = t1.table.Delete(); err != nil {
+		return err
+	}
+	if err = t2.table.Delete(); err != nil {
+		return err
+	}
+	if err = newSS.Rename(t1.table.Name); err != nil {
+		return err
+	}
+	idx := index.NewManager(newSS, 10, 1)
+	if err = idx.Init(); err != nil {
+		return err
+	}
+	s.idx[0] = SSWithIndex{
+		table: newSS,
+		idx:   idx,
+	}
+	s.idx = append(s.idx[:1], s.idx[2:]...)
 	return nil
 }

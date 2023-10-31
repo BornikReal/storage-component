@@ -11,12 +11,14 @@ type Manager struct {
 	table     *ss.SS
 	idx       []Value
 	blockSize int64
+	batch     int64
 }
 
-func NewManager(table *ss.SS, blockSize int64) *Manager {
+func NewManager(table *ss.SS, blockSize int64, batch int64) *Manager {
 	return &Manager{
 		table:     table,
 		blockSize: blockSize,
+		batch:     batch,
 	}
 }
 
@@ -26,7 +28,7 @@ func (m *Manager) Init() error {
 	var err error
 
 	for {
-		key, pos, offset, err = m.table.FindFirstFromOffset(offset, 1)
+		key, pos, offset, err = m.table.FindFirstFromOffset(offset, m.batch)
 		if err != nil {
 			return err
 		}
@@ -34,6 +36,7 @@ func (m *Manager) Init() error {
 			Key:    key,
 			Offset: pos,
 		})
+		offset += m.blockSize
 		if offset >= m.table.Size {
 			break
 		}

@@ -1,37 +1,42 @@
 package main
 
-import "fmt"
-
-func binarySearch(needle int, haystack []int) (int, bool) {
-
-	low := 0
-	high := len(haystack) - 1
-
-	for low <= high {
-		median := (low + high) / 2
-
-		if haystack[median] < needle {
-			low = median + 1
-		} else {
-			high = median - 1
-		}
-	}
-
-	if low < len(haystack) && low >= 0 && haystack[low] == needle {
-		return haystack[low], true
-	}
-
-	if high >= len(haystack) || high < 0 {
-		return 0, false
-	}
-
-	return haystack[high], true
-}
+//func binarySearch(needle int, haystack []int) (int, bool) {
+//
+//	low := 0
+//	high := len(haystack) - 1
+//
+//	for low <= high {
+//		median := (low + high) / 2
+//
+//		if haystack[median] < needle {
+//			low = median + 1
+//		} else {
+//			high = median - 1
+//		}
+//	}
+//
+//	if low < len(haystack) && low >= 0 && haystack[low] == needle {
+//		return haystack[low], true
+//	}
+//
+//	if high >= len(haystack) || high < 0 {
+//		return 0, false
+//	}
+//
+//	return haystack[high], true
+//}
 
 func main() {
-	items := []int{1, 2, 9, 20, 31, 45, 64, 70, 100}
-	fmt.Println(binarySearch(110, items))
-
+	//items := []int{1, 2, 9, 20, 31, 45, 64, 70, 100}
+	//fmt.Println(binarySearch(110, items))
+	//pq := priorityqueue.NewWith(utils.IntComparator)
+	//pq.Enqueue(1)
+	//pq.Enqueue(5)
+	//pq.Enqueue(4)
+	//fmt.Println(pq.Dequeue())
+	//fmt.Println(pq.Dequeue())
+	//fmt.Println(pq.Dequeue())
+	//fmt.Println(pq.Dequeue())
 	//tree := avltree.NewWithStringComparator()
 	//tree.Put("1", "a")
 	//tree.Put("4", "d")

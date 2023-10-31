@@ -18,12 +18,18 @@ var (
 	UnexpectedFileEndError = errors.New("unexpected file end error")
 )
 
+type KV struct {
+	Key   string
+	Value string
+}
+
 type SS struct {
 	Id   int64
 	Name string
 	Size int64
 
-	file *os.File
+	file   *os.File
+	offset int64
 }
 
 func NewSS(name string) *SS {
@@ -56,18 +62,18 @@ func (s *SS) Init() error {
 	return nil
 }
 
-func (s *SS) WriteKV(key string, value string) error {
+func (s *SS) WriteKV(kv KV) error {
 	if s.file == nil {
 		return NotInitSSTableError
 	}
 
-	res := make([]byte, 0, len(key)+len(value)+2)
+	res := make([]byte, 0, len(kv.Key)+len(kv.Value)+2)
 	if s.Size != 0 {
 		res = append(res, fileDelimiter)
 	}
-	res = append(res, []byte(key)...)
+	res = append(res, []byte(kv.Key)...)
 	res = append(res, kvDelimiter)
-	res = append(res, []byte(value)...)
+	res = append(res, []byte(kv.Value)...)
 	_, err := s.file.Write(res)
 	if err != nil {
 		return err
@@ -138,6 +144,59 @@ func (s *SS) FindFirstFromOffset(offset, batch int64) (string, int64, int64, err
 	return string(key), pos, s.Size, nil
 }
 
+func (s *SS) Read(batch int64) (KV, bool, error) {
+	if s.offset == s.Size {
+		return KV{}, false, nil
+	}
+	r := make([]byte, batch)
+	var pair []byte
+	var kv KV
+
+	for i := s.offset; i < s.Size; i += batch {
+		n, err := s.file.ReadAt(r, i)
+		if err != nil {
+			return KV{}, false, err
+		}
+		for j := 0; j < n; j++ {
+			if r[j] == fileDelimiter {
+				s.offset = i
+				kv, err = getPair(pair)
+				return kv, true, err
+			} else {
+				pair = append(pair, r[j])
+			}
+		}
+	}
+	s.offset = s.Size
+	kv, err := getPair(pair)
+	return kv, true, err
+}
+
+func (s *SS) Delete() error {
+	if err := s.file.Close(); err != nil {
+		return err
+	}
+	if err := os.Remove(s.Name); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SS) Rename(newName string) error {
+	id, err := strconv.ParseInt(newName, 10, 64)
+	if err != nil {
+		return err
+	}
+	if err = s.file.Close(); err != nil {
+		return err
+	}
+	if err = os.Rename(s.Name, newName); err != nil {
+		return err
+	}
+	s.Id = id
+	return nil
+}
+
 func (s *SS) UpdateSize() (int64, error) {
 	info, err := s.file.Stat()
 	if err != nil {
@@ -147,12 +206,15 @@ func (s *SS) UpdateSize() (int64, error) {
 	return s.Size, nil
 }
 
-func getPair(pair []byte) (string, string, error) {
+func getPair(pair []byte) (KV, error) {
 	kv := bytes.Split(pair, []byte{kvDelimiter})
 	if len(kv) != 2 {
-		return "", "", errors.New("invalid pair")
+		return KV{}, errors.New("invalid pair")
 	}
-	return string(kv[0]), string(kv[1]), nil
+	return KV{
+		Key:   string(kv[0]),
+		Value: string(kv[1]),
+	}, nil
 }
 
 func findValue(search string, pairs [][]byte) (string, bool, error) {
@@ -162,12 +224,12 @@ func findValue(search string, pairs [][]byte) (string, bool, error) {
 	for begin <= end {
 		mid := (begin + end) / 2
 
-		key, _, err := getPair(pairs[mid])
+		kv, err := getPair(pairs[mid])
 		if err != nil {
 			return "", false, err
 		}
 
-		if key < search {
+		if kv.Key < search {
 			begin = mid + 1
 		} else {
 			end = mid - 1
@@ -178,10 +240,10 @@ func findValue(search string, pairs [][]byte) (string, bool, error) {
 		return "", false, nil
 	}
 
-	key, value, err := getPair(pairs[begin])
-	if err != nil || key != search {
+	kv, err := getPair(pairs[begin])
+	if err != nil || kv.Key != search {
 		return "", false, err
 	}
 
-	return value, true, nil
+	return kv.Value, true, nil
 }
