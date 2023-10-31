@@ -188,7 +188,7 @@ func (s *SSManager) CompressSS() error {
 	}
 
 	for ok1 {
-		kv1, ok1, err = t1.table.Read(1)
+		kv1, ok1, err = t1.table.Read(s.batch)
 		if err != nil {
 			return err
 		}
@@ -199,7 +199,7 @@ func (s *SSManager) CompressSS() error {
 	}
 
 	for ok2 {
-		kv2, ok2, err = t2.table.Read(1)
+		kv2, ok2, err = t2.table.Read(s.batch)
 		if err != nil {
 			return err
 		}
