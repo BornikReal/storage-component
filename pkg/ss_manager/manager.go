@@ -2,11 +2,12 @@ package ss_manager
 
 import (
 	"fmt"
-	"github.com/BornikReal/storage-component/pkg/index"
-	"github.com/BornikReal/storage-component/pkg/ss"
 	"os"
 	"sort"
 	"strconv"
+
+	"github.com/BornikReal/storage-component/pkg/index"
+	"github.com/BornikReal/storage-component/pkg/ss"
 )
 
 type Iterator interface {
@@ -22,14 +23,18 @@ type SSWithIndex struct {
 }
 
 type SSManager struct {
-	path string
+	path      string
+	blockSize int64
+	batch     int64
 
 	idx []SSWithIndex
 }
 
-func NewSSManager(path string) *SSManager {
+func NewSSManager(path string, blockSize int64, batch int64) *SSManager {
 	return &SSManager{
-		path: path,
+		path:      path,
+		blockSize: blockSize,
+		batch:     batch,
 	}
 }
 
@@ -48,7 +53,7 @@ func (s *SSManager) Init() error {
 		if err = ssi.table.Init(); err != nil {
 			return err
 		}
-		ssi.idx = index.NewManager(ssi.table, 10, 1)
+		ssi.idx = index.NewManager(ssi.table, s.blockSize, s.batch)
 		if err = ssi.idx.Init(); err != nil {
 			return err
 		}
@@ -72,7 +77,7 @@ func (s *SSManager) createNewSS() (SSWithIndex, error) {
 	}
 	idx := SSWithIndex{
 		table: newSS,
-		idx:   index.NewManager(newSS, 10, 1),
+		idx:   index.NewManager(newSS, s.blockSize, s.batch),
 	}
 	s.idx = append(s.idx, idx)
 	return idx, nil
@@ -209,7 +214,7 @@ func (s *SSManager) CompressSS() error {
 	if err = newSS.Rename(t1.table.Name); err != nil {
 		return err
 	}
-	idx := index.NewManager(newSS, 10, 1)
+	idx := index.NewManager(newSS, s.blockSize, s.batch)
 	if err = idx.Init(); err != nil {
 		return err
 	}

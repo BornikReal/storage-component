@@ -6,19 +6,35 @@ type Tree interface {
 	Get(key interface{}) (value interface{}, found bool)
 	Put(key interface{}, value interface{})
 	Size() int
+	Iterator() Iterator
+	Clear()
+}
+
+type Iterator interface {
+	Next() bool
+	Value() interface{}
+	Key() interface{}
+	First() bool
+}
+
+type SSManager interface {
+	SaveTree(it Iterator) error
+	Get(key string) (string, bool, error)
 }
 
 type MemTable struct {
-	mu      sync.RWMutex
-	storage Tree
+	mu        sync.RWMutex
+	storage   Tree
+	ssManager SSManager
 
 	maxSize int
 }
 
-func NewMemTable(tree Tree, maxSize int) *MemTable {
+func NewMemTable(tree Tree, ssManager SSManager, maxSize int) *MemTable {
 	return &MemTable{
-		storage: tree,
-		maxSize: maxSize,
+		storage:   tree,
+		maxSize:   maxSize,
+		ssManager: ssManager,
 	}
 }
 
@@ -31,7 +47,14 @@ func (i *MemTable) Get(key string) (string, error) {
 	}
 	value, ok := i.storage.Get(key)
 	if !ok {
-		return "", NotFoundError
+		valueStr, okSS, err := i.ssManager.Get(key)
+		if err != nil {
+			return "", err
+		}
+		if !okSS {
+			return "", NotFoundError
+		}
+		return valueStr, nil
 	}
 	valueStr, ok := value.(string)
 	if !ok {
@@ -51,11 +74,10 @@ func (i *MemTable) Set(key string, value string) error {
 	i.storage.Put(key, value)
 
 	if i.storage.Size() >= i.maxSize {
-
+		if err := i.ssManager.SaveTree(i.storage.Iterator()); err != nil {
+			return err
+		}
+		i.storage.Clear()
 	}
 	return nil
 }
-
-//func (i *MemTable) saveInSSTable() error {
-//
-//}

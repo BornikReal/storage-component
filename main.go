@@ -42,6 +42,7 @@ func main() {
 	//tree.Put("4", "d")
 	//tree.Put("3", "c")
 	//tree.Put("2", "b")
+	//tree.Clear()
 	//it := tree.Iterator()
 	//next := it.First()
 	//for next {
