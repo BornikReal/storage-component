@@ -1,24 +1,22 @@
 package storage
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/BornikReal/storage-component/pkg/iterator"
+	"github.com/emirpasic/gods/containers"
+)
 
 type Tree interface {
 	Get(key interface{}) (value interface{}, found bool)
 	Put(key interface{}, value interface{})
 	Size() int
-	Iterator() Iterator
+	Iterator() containers.ReverseIteratorWithKey
 	Clear()
 }
 
-type Iterator interface {
-	Next() bool
-	Value() interface{}
-	Key() interface{}
-	First() bool
-}
-
 type SSManager interface {
-	SaveTree(it Iterator) error
+	SaveTree(it iterator.Iterator) error
 	Get(key string) (string, bool, error)
 }
 

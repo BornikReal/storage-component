@@ -1,21 +1,16 @@
 package ss_manager
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"strconv"
 
 	"github.com/BornikReal/storage-component/pkg/index"
+	"github.com/BornikReal/storage-component/pkg/iterator"
 	"github.com/BornikReal/storage-component/pkg/ss"
 )
-
-type Iterator interface {
-	Next() bool
-	Value() interface{}
-	Key() interface{}
-	First() bool
-}
 
 type SSWithIndex struct {
 	table *ss.SS
@@ -40,6 +35,10 @@ func NewSSManager(path string, blockSize int64, batch int64) *SSManager {
 
 func (s *SSManager) Init() error {
 	files, err := os.ReadDir(s.path)
+	if errors.Is(err, os.ErrNotExist) {
+		err = os.Mkdir(s.path, os.ModePerm)
+		return err
+	}
 	if err != nil {
 		return err
 	}
@@ -47,7 +46,7 @@ func (s *SSManager) Init() error {
 	for _, f := range files {
 		name := f.Name()
 		ssi := SSWithIndex{
-			table: ss.NewSS(name),
+			table: ss.NewSS(s.path, name),
 		}
 
 		if err = ssi.table.Init(); err != nil {
@@ -71,7 +70,7 @@ func (s *SSManager) createNewSS() (SSWithIndex, error) {
 	if len(s.idx) != 0 {
 		lastID = s.idx[len(s.idx)-1].table.Id + 1
 	}
-	newSS := ss.NewSS(strconv.FormatInt(lastID, 10))
+	newSS := ss.NewSS(s.path, strconv.FormatInt(lastID, 10))
 	if err := newSS.Init(); err != nil {
 		return SSWithIndex{}, err
 	}
@@ -83,7 +82,7 @@ func (s *SSManager) createNewSS() (SSWithIndex, error) {
 	return idx, nil
 }
 
-func (s *SSManager) SaveTree(it Iterator) error {
+func (s *SSManager) SaveTree(it iterator.Iterator) error {
 	idx, err := s.createNewSS()
 	if err != nil {
 		return err
@@ -107,6 +106,10 @@ func (s *SSManager) SaveTree(it Iterator) error {
 			return err
 		}
 		next = it.Next()
+	}
+
+	if _, err = idx.table.UpdateSize(); err != nil {
+		return err
 	}
 
 	if err = idx.idx.Init(); err != nil {
@@ -136,7 +139,7 @@ func (s *SSManager) CompressSS() error {
 
 	t1 := s.idx[0]
 	t2 := s.idx[1]
-	newSS := ss.NewSS(fmt.Sprintf("%s_temp", t1.table.Name))
+	newSS := ss.NewSS(s.path, fmt.Sprintf("-%s", t1.table.Name))
 	if err := newSS.Init(); err != nil {
 		return err
 	}
@@ -151,14 +154,14 @@ func (s *SSManager) CompressSS() error {
 
 	for {
 		if read1 {
-			kv1, ok1, err = t1.table.Read(1)
+			kv1, ok1, err = t1.table.Read(s.batch)
 			if err != nil {
 				return err
 			}
 		}
 
 		if read2 {
-			kv2, ok2, err = t2.table.Read(1)
+			kv2, ok2, err = t2.table.Read(s.batch)
 			if err != nil {
 				return err
 			}

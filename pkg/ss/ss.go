@@ -3,6 +3,7 @@ package ss
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 )
@@ -28,20 +29,27 @@ type SS struct {
 	Name string
 	Size int64
 
-	file   *os.File
-	offset int64
+	file       *os.File
+	offset     int64
+	path       string
+	isNotEmpty bool
 }
 
-func NewSS(name string) *SS {
+func NewSS(path string, name string) *SS {
 	return &SS{
 		Name: name,
+		path: path,
 	}
 }
 
+func (s *SS) getFullPath() string {
+	return fmt.Sprintf("%s/%s", s.path, s.Name)
+}
+
 func (s *SS) Init() error {
-	file, err := os.Open(s.Name)
+	file, err := os.Open(s.getFullPath())
 	if errors.Is(err, os.ErrNotExist) {
-		file, err = os.Create(s.Name)
+		file, err = os.Create(s.getFullPath())
 	}
 	if err != nil {
 		return err
@@ -62,14 +70,20 @@ func (s *SS) Init() error {
 	return nil
 }
 
+func (s *SS) Close() error {
+	return s.file.Close()
+}
+
 func (s *SS) WriteKV(kv KV) error {
 	if s.file == nil {
 		return NotInitSSTableError
 	}
 
 	res := make([]byte, 0, len(kv.Key)+len(kv.Value)+2)
-	if s.Size != 0 {
+	if s.isNotEmpty {
 		res = append(res, fileDelimiter)
+	} else {
+		s.isNotEmpty = true
 	}
 	res = append(res, []byte(kv.Key)...)
 	res = append(res, kvDelimiter)
@@ -117,6 +131,10 @@ func (s *SS) FindFirstFromOffset(offset, batch int64) (string, int64, int64, err
 	var keyStart, keyFound bool
 	var pos int64
 
+	if offset == 0 {
+		keyStart = true
+	}
+
 	for i := offset; i < s.Size; i += batch {
 		n, err := s.file.ReadAt(r, i)
 		if err != nil {
@@ -128,7 +146,7 @@ func (s *SS) FindFirstFromOffset(offset, batch int64) (string, int64, int64, err
 					return string(key), pos, i + int64(j), nil
 				}
 				keyStart = true
-				pos = i + int64(j)
+				pos = i + int64(j) + 1
 			} else if r[j] == kvDelimiter && keyStart {
 				keyFound = true
 			} else if keyStart && !keyFound {
@@ -159,7 +177,7 @@ func (s *SS) Read(batch int64) (KV, bool, error) {
 		}
 		for j := 0; j < n; j++ {
 			if r[j] == fileDelimiter {
-				s.offset = i
+				s.offset = i + int64(j) + 1
 				kv, err = getPair(pair)
 				return kv, true, err
 			} else {
@@ -176,24 +194,23 @@ func (s *SS) Delete() error {
 	if err := s.file.Close(); err != nil {
 		return err
 	}
-	if err := os.Remove(s.Name); err != nil {
+	if err := os.Remove(s.getFullPath()); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (s *SS) Rename(newName string) error {
-	id, err := strconv.ParseInt(newName, 10, 64)
-	if err != nil {
+	if err := s.file.Close(); err != nil {
 		return err
 	}
-	if err = s.file.Close(); err != nil {
+	if err := os.Rename(s.getFullPath(), fmt.Sprintf("%s/%s", s.path, newName)); err != nil {
 		return err
 	}
-	if err = os.Rename(s.Name, newName); err != nil {
+	s.Name = newName
+	if err := s.Init(); err != nil {
 		return err
 	}
-	s.Id = id
 	return nil
 }
 
