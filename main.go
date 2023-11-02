@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/BornikReal/storage-component/pkg/kv_file"
 	"github.com/BornikReal/storage-component/pkg/ss_manager"
 	"github.com/BornikReal/storage-component/pkg/storage"
 	"github.com/emirpasic/gods/trees/avltree"
@@ -13,7 +15,14 @@ func main() {
 		panic(err)
 	}
 	tree := avltree.NewWithStringComparator()
-	mt := storage.NewMemTable(tree, ssManager, 5)
+	wal := kv_file.NewKVFile("", "wal")
+	if err := wal.Init(); err != nil {
+		panic(err)
+	}
+	mt := storage.NewMemTable(tree, ssManager, wal, 5)
+	if err := mt.Init(); err != nil {
+		panic(err)
+	}
 
 	fmt.Println(mt.Set("a", "1"))
 	fmt.Println(mt.Get("a"))

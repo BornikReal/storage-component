@@ -9,6 +9,7 @@ import (
 
 	"github.com/BornikReal/storage-component/pkg/index"
 	"github.com/BornikReal/storage-component/pkg/iterator"
+	"github.com/BornikReal/storage-component/pkg/kv_file"
 	"github.com/BornikReal/storage-component/pkg/ss"
 )
 
@@ -99,7 +100,7 @@ func (s *SSManager) SaveTree(it iterator.Iterator) error {
 			return err
 		}
 
-		if err = idx.table.WriteKV(ss.KV{
+		if err = idx.table.WriteKV(kv_file.KV{
 			Key:   key,
 			Value: value,
 		}); err != nil {
@@ -149,7 +150,7 @@ func (s *SSManager) CompressSS() error {
 	read1 := true
 	read2 := true
 
-	var kv1, kv2 ss.KV
+	var kv1, kv2 kv_file.KV
 	var err error
 
 	for {
