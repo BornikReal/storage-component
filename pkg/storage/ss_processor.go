@@ -16,9 +16,10 @@ type SSProcessor struct {
 	errorCh   chan error
 }
 
-func NewSSProcessor(ssManager SSSaver) *SSProcessor {
+func NewSSProcessor(ssManager SSSaver, errorCh chan error) *SSProcessor {
 	return &SSProcessor{
 		ssManager: ssManager,
+		errorCh:   errorCh,
 	}
 }
 
