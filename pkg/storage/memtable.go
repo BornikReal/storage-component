@@ -55,13 +55,6 @@ func (i *MemTable) Set(key string, value string) error {
 
 	if i.storage.Size() >= i.maxSize {
 		i.dumper <- i.storage.Clone().Iterator()
-		//if err := i.ssManager.SaveTree(i.storage.Iterator()); err != nil {
-		//	return err
-		//}
-		//i.storage.Clear()
-		//if err := i.wal.Clear(); err != nil {
-		//	return err
-		//}
 	}
 	return nil
 }

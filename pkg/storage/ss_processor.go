@@ -13,6 +13,7 @@ type (
 
 type SSProcessor struct {
 	ssManager SSSaver
+	errorCh   chan error
 }
 
 func NewSSProcessor(ssManager SSSaver) *SSProcessor {
@@ -21,10 +22,10 @@ func NewSSProcessor(ssManager SSSaver) *SSProcessor {
 	}
 }
 
-func (sp *SSProcessor) Listen(listener chan iterator.Iterator) {
+func (sp *SSProcessor) Start(listener chan iterator.Iterator) {
 	for it := range listener {
 		if err := sp.ssManager.SaveTree(it); err != nil {
-			panic(err)
+			sp.errorCh <- err
 		}
 	}
 }
