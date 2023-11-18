@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/BornikReal/storage-component/pkg/kv_file"
+	"github.com/BornikReal/storage-component/pkg/ss_storage/kv_file"
 )
 
 type SS struct {

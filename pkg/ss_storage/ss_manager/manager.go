@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/BornikReal/storage-component/pkg/index"
-	"github.com/BornikReal/storage-component/pkg/iterator"
-	"github.com/BornikReal/storage-component/pkg/kv_file"
-	"github.com/BornikReal/storage-component/pkg/ss"
+	"github.com/BornikReal/storage-component/pkg/ss_storage/index"
+	"github.com/BornikReal/storage-component/pkg/ss_storage/iterator"
+	"github.com/BornikReal/storage-component/pkg/ss_storage/kv_file"
+	"github.com/BornikReal/storage-component/pkg/ss_storage/ss"
 )
 
 type SSWithIndex struct {

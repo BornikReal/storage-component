@@ -1,35 +1,30 @@
 package main
 
-import (
-	"context"
-	"fmt"
-	"github.com/redis/go-redis/v9"
-)
-
 func main() {
-	ctx := context.Background()
-
-	rdb := redis.NewClient(&redis.Options{
-		Addr: "172.28.1.4:6380",
-	})
-
-	err := rdb.Set(ctx, "key", "value", 0).Err()
-	if err != nil {
-		panic(err)
-	}
-
-	val2, err := rdb.Get(ctx, "key2").Result()
-	if err == redis.Nil {
-		fmt.Println("key2 does not exist")
-	} else if err != nil {
-		panic(err)
-	} else {
-		fmt.Println("key2", val2)
-	}
+	//ctx := context.Background()
+	//
+	//rdb := redis.NewClient(&redis.Options{
+	//	Addr: "172.28.1.4:6380",
+	//})
+	//
+	//err := rdb.Set(ctx, "key", "value", 0).Err()
+	//if err != nil {
+	//	panic(err)
+	//}
+	//
+	//val2, err := rdb.Get(ctx, "key2").Result()
+	//if err == redis.Nil {
+	//	fmt.Println("key2 does not exist")
+	//} else if err != nil {
+	//	panic(err)
+	//} else {
+	//	fmt.Println("key2", val2)
+	//}
 	//ssManager := ss_manager.NewSSManager("test", 10, 1)
 	//if err := ssManager.Init(); err != nil {
 	//	panic(err)
 	//}
+	//avltree.NewWithStringComparator().FromJSON()
 	//tree := avltree.NewWithStringComparator()
 	//wal := kv_file.NewKVFile("", "wal")
 	//if err := wal.Init(); err != nil {
