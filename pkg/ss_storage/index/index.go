@@ -1,6 +1,8 @@
 package index
 
-import "github.com/BornikReal/storage-component/pkg/ss"
+import (
+	"github.com/BornikReal/storage-component/pkg/ss_storage/ss"
+)
 
 type Value struct {
 	Key    string

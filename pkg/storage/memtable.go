@@ -1,38 +1,26 @@
 package storage
 
 import (
+	"fmt"
+	"github.com/BornikReal/storage-component/pkg/ss_storage/iterator"
+	"github.com/BornikReal/storage-component/pkg/tree_with_clone"
 	"sync"
-
-	"github.com/BornikReal/storage-component/pkg/iterator"
-	"github.com/emirpasic/gods/containers"
 )
 
-type Tree interface {
-	Get(key interface{}) (value interface{}, found bool)
-	Put(key interface{}, value interface{})
-	Size() int
-	Iterator() containers.ReverseIteratorWithKey
-	Clear()
-}
-
-type SSManager interface {
-	SaveTree(it iterator.Iterator) error
-	Get(key string) (string, bool, error)
-}
-
 type MemTable struct {
-	mu        sync.RWMutex
-	storage   Tree
-	ssManager SSManager
+	mu      sync.RWMutex
+	storage tree_with_clone.Tree
+	dumper  chan iterator.Iterator
+	//ssManager SSSaver
 
 	maxSize int
 }
 
-func NewMemTable(tree Tree, ssManager SSManager, maxSize int) *MemTable {
+func NewMemTable(tree tree_with_clone.Tree, dumper chan iterator.Iterator, maxSize int) *MemTable {
 	return &MemTable{
-		storage:   tree,
-		maxSize:   maxSize,
-		ssManager: ssManager,
+		storage: tree,
+		dumper:  dumper,
+		maxSize: maxSize,
 	}
 }
 
@@ -45,18 +33,11 @@ func (i *MemTable) Get(key string) (string, error) {
 	}
 	value, ok := i.storage.Get(key)
 	if !ok {
-		valueStr, okSS, err := i.ssManager.Get(key)
-		if err != nil {
-			return "", err
-		}
-		if !okSS {
-			return "", NotFoundError
-		}
-		return valueStr, nil
+		return "", NotFoundError
 	}
 	valueStr, ok := value.(string)
 	if !ok {
-		return "", NotStringError(valueStr)
+		return "", fmt.Errorf("expected string, but got %T", valueStr)
 	}
 
 	return valueStr, nil
@@ -69,13 +50,11 @@ func (i *MemTable) Set(key string, value string) error {
 	if i.storage == nil {
 		return NotInitError
 	}
+
 	i.storage.Put(key, value)
 
 	if i.storage.Size() >= i.maxSize {
-		if err := i.ssManager.SaveTree(i.storage.Iterator()); err != nil {
-			return err
-		}
-		i.storage.Clear()
+		i.dumper <- i.storage.Clone().Iterator()
 	}
 	return nil
 }
