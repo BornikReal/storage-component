@@ -1,3 +1,5 @@
 module github.com/BornikReal/storage-component
 
 go 1.19
+
+require github.com/emirpasic/gods v1.18.1
