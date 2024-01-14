@@ -63,6 +63,7 @@ func (s *KVFile) Init() error {
 	}
 	s.Size = size
 	s.isNotEmpty = size != 0
+	s.offset = 0
 
 	return nil
 }

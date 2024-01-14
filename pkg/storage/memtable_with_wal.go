@@ -6,6 +6,7 @@ import (
 )
 
 type KVFile interface {
+	Init() error
 	WriteKV(kv kv_file.KV) error
 	Read(batch int64) (kv_file.KV, bool, error)
 	Clear() error
@@ -25,18 +26,30 @@ func NewMemTableWithWal(memtable *MemTableWithSS, wal KVFile) *MemTableWithWal {
 }
 
 func (i *MemTableWithWal) Init() error {
-	for {
-		kv, ok, err := i.wal.Read(1)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return nil
-		}
-		if err = i.memtable.Set(kv.Key, kv.Value); err != nil {
+	//for {
+	//	kv, ok, err := i.wal.Read(1)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	if !ok {
+	//		return nil
+	//	}
+	//	if err = i.memtable.Set(kv.Key, kv.Value); err != nil {
+	//		return err
+	//	}
+	//}
+
+	res, err := i.GetWalElements(false)
+	if err != nil || res == nil {
+		return err
+	}
+	for k, v := range res {
+		if err = i.memtable.Set(k, v); err != nil {
 			return err
 		}
 	}
+
+	return nil
 }
 
 func (i *MemTableWithWal) Get(key string) (string, error) {
@@ -62,4 +75,25 @@ func (i *MemTableWithWal) Set(key string, value string) error {
 	i.mu.Unlock()
 
 	return i.memtable.Set(key, value)
+}
+
+func (i *MemTableWithWal) GetWalElements(init bool) (map[string]string, error) {
+	if init {
+		if err := i.wal.Init(); err != nil {
+			return nil, err
+		}
+	}
+
+	walEl := make(map[string]string)
+
+	for {
+		kv, ok, err := i.wal.Read(1)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return walEl, nil
+		}
+		walEl[kv.Key] = kv.Value
+	}
 }
