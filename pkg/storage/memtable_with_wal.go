@@ -78,6 +78,8 @@ func (i *MemTableWithWal) Set(key string, value string) error {
 }
 
 func (i *MemTableWithWal) GetWalElements(init bool) (map[string]string, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	if init {
 		if err := i.wal.Init(); err != nil {
 			return nil, err
